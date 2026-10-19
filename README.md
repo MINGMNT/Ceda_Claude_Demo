@@ -30,6 +30,7 @@ streamlit run app.py
 
 - `app.py` — หน้า UI ของ Streamlit
 - `aci318_column.py` — ฟังก์ชันคำนวณ (ใช้แยกได้โดยไม่ต้องมี Streamlit)
+- `.streamlit/config.toml` — ธีมสีของแอป
 
 ## ข้อจำกัด
 
