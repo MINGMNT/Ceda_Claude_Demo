@@ -12,6 +12,12 @@ import streamlit as st
 
 import aci318_column as aci
 
+# Units: the UI works in ksc (kgf/cm²), cm, m, tonne-force (t) and t·m;
+# aci318_column works in N, mm and MPa. Convert at the boundary.
+KSC = 0.0980665      # MPa per ksc
+TON = 9806.65        # N per t
+TM = TON * 1000.0    # N·mm per t·m
+
 st.set_page_config(page_title="ออกแบบเสายาว ACI 318-19", page_icon="🏛️", layout="wide")
 
 # Colour palette (navy & gold) shared by CSS, cards and charts
@@ -95,7 +101,7 @@ st.markdown(
       <div>
         <h1>ออกแบบเสายาว (Slender Column)</h1>
         <p>วิธีขยายโมเมนต์ (Moment Magnification Method) สำหรับเสาคอนกรีตเสริมเหล็ก</p>
-        <span class="chip">📘 ACI 318-19</span><span class="chip">📏 mm · MPa · kN · kN·m</span>
+        <span class="chip">📘 ACI 318-19</span><span class="chip">📏 ksc · cm · m · ตัน · ตัน-ม.</span>
         <span class="chip">↕️ ดัดแกนเดียว</span>
       </div>
     </div>
@@ -128,12 +134,15 @@ sb = st.sidebar
 sb.markdown('<div class="side-title">⚙️ ข้อมูลออกแบบ</div>', unsafe_allow_html=True)
 
 with sb.expander("🧱 1) วัสดุ", expanded=True):
-    fc = st.number_input("f'c (MPa)", 15.0, 100.0, 28.0, 1.0, help="กำลังอัดคอนกรีตทรงกระบอก")
-    fy = st.number_input("fy (MPa)", 240.0, 700.0, 420.0, 10.0, help="กำลังครากเหล็กยืน (SD40 = 390, Grade 60 = 420)")
-    Es = st.number_input("Es (MPa)", 150000.0, 210000.0, 200000.0, 1000.0)
-    Ec_auto = st.checkbox("Ec = 4700√f'c (19.2.2.1)", value=True)
-    Ec = aci.Ec_normal(fc) if Ec_auto else st.number_input("Ec (MPa)", 10000.0, 60000.0, aci.Ec_normal(fc), 500.0)
-    agg = st.number_input("ขนาดมวลรวมใหญ่สุด (mm)", 10.0, 40.0, 20.0, 5.0)
+    fc_ksc = st.number_input("f'c (ksc)", 150.0, 1000.0, 280.0, 10.0, help="กำลังอัดคอนกรีตทรงกระบอก (กก./ตร.ซม.)")
+    fy_ksc = st.number_input("fy (ksc)", 2400.0, 7000.0, 4000.0, 100.0,
+                             help="กำลังครากเหล็กยืน (SD30 = 3000, SD40 = 4000, SD50 = 5000)")
+    Es_ksc = st.number_input("Es (ksc)", 1.5e6, 2.2e6, 2.04e6, 1e4, format="%.0f")
+    fc, fy, Es = fc_ksc * KSC, fy_ksc * KSC, Es_ksc * KSC
+    Ec_auto = st.checkbox("Ec = 4700√f'c [MPa] ≈ 15,000√f'c [ksc] (19.2.2.1)", value=True)
+    Ec = aci.Ec_normal(fc) if Ec_auto else \
+        st.number_input("Ec (ksc)", 1e5, 6e5, aci.Ec_normal(fc) / KSC, 5000.0, format="%.0f") * KSC
+    agg = st.number_input("ขนาดมวลรวมใหญ่สุด (cm)", 1.0, 4.0, 2.0, 0.5) * 10.0
 
 with sb.expander("📐 2) หน้าตัดและเหล็กเสริม", expanded=True):
     shape_lbl = st.radio("รูปทรงหน้าตัด", ["สี่เหลี่ยม", "วงกลม"], horizontal=True)
@@ -143,12 +152,12 @@ with sb.expander("📐 2) หน้าตัดและเหล็กเสร
 
     if shape == "rect":
         c1, c2 = st.columns(2)
-        b = c1.number_input("b (mm)", 150.0, 3000.0, 500.0, 25.0, help="ด้านตั้งฉากกับทิศทางการดัด")
-        h = c2.number_input("h (mm)", 150.0, 3000.0, 500.0, 25.0, help="ด้านในทิศทางการดัด (ความลึก)")
+        b = c1.number_input("b (cm)", 15.0, 300.0, 50.0, 2.5, help="ด้านตั้งฉากกับทิศทางการดัด") * 10.0
+        h = c2.number_input("h (cm)", 15.0, 300.0, 50.0, 2.5, help="ด้านในทิศทางการดัด (ความลึก)") * 10.0
     else:
-        D = st.number_input("เส้นผ่านศูนย์กลาง D (mm)", 200.0, 3000.0, 500.0, 25.0)
+        D = st.number_input("เส้นผ่านศูนย์กลาง D (cm)", 20.0, 300.0, 50.0, 2.5) * 10.0
 
-    cover = st.number_input("ระยะหุ้มถึงผิวเหล็กปลอก (mm)", 20.0, 100.0, 40.0, 5.0)
+    cover = st.number_input("ระยะหุ้มถึงผิวเหล็กปลอก (cm)", 2.0, 10.0, 4.0, 0.5) * 10.0
     c1, c2 = st.columns(2)
     bar_lbl = c1.selectbox("เหล็กยืน", list(aci.BAR_SIZES), index=4)
     tie_lbl = c2.selectbox("เหล็กปลอก", list(aci.TIE_SIZES), index=2)
@@ -162,7 +171,7 @@ with sb.expander("📐 2) หน้าตัดและเหล็กเสร
     else:
         n_c = st.number_input("จำนวนเหล็กยืนรอบวง", 4, 40, 8, 1)
         sec = aci.make_circ_section(D, cover, db, dt, int(n_c))
-    st.info(f"เหล็กยืน {sec.n_bars}-{bar_lbl}  •  Ast = {sec.Ast:,.0f} mm²  •  ρg = {sec.Ast / sec.Ag * 100:.2f}%")
+    st.info(f"เหล็กยืน {sec.n_bars}-{bar_lbl}  •  Ast = {sec.Ast / 100:,.2f} ซม.²  •  ρg = {sec.Ast / sec.Ag * 100:.2f}%")
 
 with sb.expander("🏗️ 3) ระบบโครงสร้างและความยาว", expanded=True):
     frame_lbl = st.radio("ประเภทโครงข้อแข็ง", ["ไม่เซ (Nonsway)", "เซ (Sway)"], horizontal=True,
@@ -182,10 +191,10 @@ with sb.expander("🏗️ 3) ระบบโครงสร้างและค
         st.success(f"k = {k:.3f}  (Alignment chart, R6.2.5)")
 
 with sb.expander("🎯 4) แรงกระทำ (Factored)", expanded=True):
-    Pu_kN = st.number_input("Pu (kN) — แรงอัด", 0.0, 100000.0, 2000.0, 50.0)
+    Pu_t = st.number_input("Pu (ตัน) — แรงอัด", 0.0, 10000.0, 200.0, 5.0)
     if frame == "nonsway":
-        M2_in = st.number_input("|M2| โมเมนต์ปลายที่มากกว่า (kN·m)", 0.0, 50000.0, 150.0, 5.0)
-        M1_in = st.number_input("|M1| โมเมนต์ปลายที่น้อยกว่า (kN·m)", 0.0, 50000.0, 100.0, 5.0)
+        M2_in = st.number_input("|M2| โมเมนต์ปลายที่มากกว่า (ตัน-ม.)", 0.0, 5000.0, 15.0, 0.5)
+        M1_in = st.number_input("|M1| โมเมนต์ปลายที่น้อยกว่า (ตัน-ม.)", 0.0, 5000.0, 10.0, 0.5)
         curv = st.radio("รูปแบบการดัด", ["ดัดโค้งทางเดียว (Single)", "ดัดโค้งสองทาง (Double)"],
                         help="Single curvature → M1/M2 เป็นลบ")
         transverse_load = st.checkbox("มีแรงกระทำทางขวางระหว่างจุดรองรับ (Cm = 1.0)")
@@ -193,20 +202,20 @@ with sb.expander("🎯 4) แรงกระทำ (Factored)", expanded=True):
             st.warning("|M1| ต้องไม่เกิน |M2| — ระบบสลับค่าให้อัตโนมัติ")
             M1_in, M2_in = M2_in, M1_in
     else:
-        st.caption("ใส่เครื่องหมาย: ค่าเครื่องหมายเดียวกันที่ปลายบน/ล่าง = ดัดโค้งทางเดียว")
+        st.caption("หน่วย ตัน-ม. • ค่าเครื่องหมายเดียวกันที่ปลายบน/ล่าง = ดัดโค้งทางเดียว")
         c1, c2 = st.columns(2)
-        Mns_top = c1.number_input("Mns ปลายบน", -50000.0, 50000.0, 40.0, 5.0, help="จากแรงที่ไม่ทำให้เซ (เช่น D, L)")
-        Mns_bot = c2.number_input("Mns ปลายล่าง", -50000.0, 50000.0, 20.0, 5.0)
-        Ms_top = c1.number_input("Ms ปลายบน", -50000.0, 50000.0, 80.0, 5.0, help="จากแรงที่ทำให้เซ (เช่น W, E)")
-        Ms_bot = c2.number_input("Ms ปลายล่าง", -50000.0, 50000.0, -70.0, 5.0)
+        Mns_top = c1.number_input("Mns ปลายบน", -5000.0, 5000.0, 4.0, 0.5, help="จากแรงที่ไม่ทำให้เซ (เช่น D, L)")
+        Mns_bot = c2.number_input("Mns ปลายล่าง", -5000.0, 5000.0, 2.0, 0.5)
+        Ms_top = c1.number_input("Ms ปลายบน", -5000.0, 5000.0, 8.0, 0.5, help="จากแรงที่ทำให้เซ (เช่น W, E)")
+        Ms_bot = c2.number_input("Ms ปลายล่าง", -5000.0, 5000.0, -7.0, 0.5)
         ds_method = st.radio("วิธีคำนวณ δs", ["ดัชนีเสถียรภาพ Q", "ΣPu / ΣPc"], horizontal=True)
         if ds_method.startswith("ดัชนี"):
             Q = st.number_input("Q (6.6.4.4.1)", 0.0, 0.99, 0.10, 0.01)
             sumPu = sumPc = None
         else:
             Q = None
-            sumPu = st.number_input("ΣPu ทั้งชั้น (kN)", 0.0, 1e7, 20000.0, 500.0)
-            sumPc = st.number_input("ΣPc ทั้งชั้น (kN)", 1.0, 1e8, 150000.0, 1000.0,
+            sumPu = st.number_input("ΣPu ทั้งชั้น (ตัน)", 0.0, 1e6, 2000.0, 50.0)
+            sumPc = st.number_input("ΣPc ทั้งชั้น (ตัน)", 1.0, 1e7, 15000.0, 100.0,
                                     help="ผลรวม Pc ของเสาที่ต้านการเซในชั้น (ใช้ k แบบเซ และ βds)")
 
 with sb.expander("🔧 5) ความแข็งแรงประสิทธิผล (EI)eff", expanded=False):
@@ -219,22 +228,22 @@ with sb.expander("🔧 5) ความแข็งแรงประสิทธ
 # =============================================================================
 # Calculations
 # =============================================================================
-Pu = Pu_kN * 1e3
+Pu = Pu_t * TON
 lu = lu_m * 1e3
 diag = aci.interaction_diagram(sec, fc, fy, Es, transverse)
 
 if frame == "nonsway":
     sign = -1.0 if curv.startswith("ดัดโค้งทางเดียว") else 1.0
-    res = aci.nonsway_magnification(sec, Pu, sign * M1_in * 1e6, M2_in * 1e6, k, lu, Ec, Es,
+    res = aci.nonsway_magnification(sec, Pu, sign * M1_in * TM, M2_in * TM, k, lu, Ec, Es,
                                     beta_dns, ei_method, transverse_load, Po=diag.Po)
-    M_first = M2_in * 1e6
+    M_first = M2_in * TM
 else:
-    res = aci.sway_magnification(sec, Pu, Mns_top * 1e6, Mns_bot * 1e6, Ms_top * 1e6, Ms_bot * 1e6,
+    res = aci.sway_magnification(sec, Pu, Mns_top * TM, Mns_bot * TM, Ms_top * TM, Ms_bot * TM,
                                  k, lu, Ec, Es, beta_dns, ei_method,
                                  "Q" if Q is not None else "sum", Q=Q,
-                                 sumPu=None if sumPu is None else sumPu * 1e3,
-                                 sumPc=None if sumPc is None else sumPc * 1e3, Po=diag.Po)
-    M_first = max(abs(Mns_top + Ms_top), abs(Mns_bot + Ms_bot)) * 1e6
+                                 sumPu=None if sumPu is None else sumPu * TON,
+                                 sumPc=None if sumPc is None else sumPc * TON, Po=diag.Po)
+    M_first = max(abs(Mns_top + Ms_top), abs(Mns_bot + Ms_bot)) * TM
 
 Mc = res.Mc
 if math.isfinite(Mc):
@@ -253,8 +262,9 @@ tab_sum, tab_pm, tab_calc, tab_sec = st.tabs(
     ["📋 สรุปผล", "📈 Interaction Diagram", "🧮 รายการคำนวณ", "🔲 หน้าตัดเสา"])
 
 
-def kNm(x):
-    return f"{x / 1e6:,.1f}" if math.isfinite(x) else "∞"
+def tm(x):
+    """N·mm -> t·m"""
+    return f"{x / TM:,.2f}" if math.isfinite(x) else "∞"
 
 
 def sci(x):
@@ -265,8 +275,14 @@ def sci(x):
     return rf"{x / 10 ** e:.3f}\times10^{{{e}}}"
 
 
-def kN(x):
-    return f"{x / 1e3:,.0f}" if math.isfinite(x) else "∞"
+def lx(x, prec=".0f"):
+    """Thousands-separated number for LaTeX (a bare comma adds a space there)."""
+    return f"{x:,{prec}}".replace(",", "{,}")
+
+
+def ton(x):
+    """N -> t"""
+    return f"{x / TON:,.1f}" if math.isfinite(x) else "∞"
 
 
 # ---------------------------------------------------------------- Summary tab
@@ -297,7 +313,7 @@ with tab_sum:
         card(c[2], "🔁", "δs / δ", f"{res.delta_s:.2f} / {res.delta:.2f}", "ตัวขยายโมเมนต์", C_BRONZE)
     else:
         card(c[2], "🔁", "δns", f"{res.delta:.3f}" if math.isfinite(res.delta) else "∞", "ตัวขยายโมเมนต์", C_BRONZE)
-    card(c[3], "🌀", "Mc ออกแบบ", kNm(Mc), f"kN·m (จาก {kNm(M_first)})", C_BLUE)
+    card(c[3], "🌀", "Mc ออกแบบ", tm(Mc), f"ตัน-ม. (จาก {tm(M_first)})", C_BLUE)
     card(c[4], "🎯", "D/C ratio", f"{ratio:.3f}" if math.isfinite(ratio) else "∞",
          "ผ่าน" if ratio <= 1 else "เกินกำลัง", dc_color)
 
@@ -322,9 +338,9 @@ with tab_sum:
         panel_title("กำลังของหน้าตัด", C_NAVY)
         st.dataframe(pd.DataFrame({
             "รายการ": ["Po", "Pn,max", "φPn,max", "φMn ที่แนวรัศมี", "φPn ที่แนวรัศมี", "φMn,b / φPn,b (สมดุล)"],
-            "ค่า": [f"{kN(diag.Po)} kN", f"{kN(diag.Pn_max)} kN", f"{kN(diag.phiPn_max)} kN",
-                    f"{kNm(phiMn_ray)} kN·m", f"{kN(phiPn_ray)} kN",
-                    f"{kNm(diag.balanced[0])} kN·m / {kN(diag.balanced[1])} kN"],
+            "ค่า": [f"{ton(diag.Po)} ตัน", f"{ton(diag.Pn_max)} ตัน", f"{ton(diag.phiPn_max)} ตัน",
+                    f"{tm(phiMn_ray)} ตัน-ม.", f"{ton(phiPn_ray)} ตัน",
+                    f"{tm(diag.balanced[0])} ตัน-ม. / {ton(diag.balanced[1])} ตัน"],
         }), hide_index=True, width="stretch")
     with g3:
         panel_title("ตรวจสอบรายละเอียดเหล็กเสริม", C_GREEN)
@@ -333,7 +349,7 @@ with tab_sum:
             for name, ok, val in detail)
         st.markdown(html, unsafe_allow_html=True)
         if transverse == "tied":
-            st.markdown(f"ℹ️ ระยะเรียงปลอกสูงสุด (25.7.2.1) = **{aci.tie_spacing(sec):.0f} mm**")
+            st.markdown(f"ℹ️ ระยะเรียงปลอกสูงสุด (25.7.2.1) = **{aci.tie_spacing(sec) / 10:.1f} ซม.**")
         elif sec.shape == "circ":
             rho_s = 0.45 * (sec.Ag / (math.pi * (sec.h - 2 * sec.cover) ** 2 / 4) - 1) * fc / fy
             st.markdown(f"ℹ️ ρs ขั้นต่ำของปลอกเกลียว (25.7.3.3) = **{rho_s:.4f}**")
@@ -346,28 +362,28 @@ with tab_sum:
 # --------------------------------------------------------- Interaction diagram
 with tab_pm:
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=diag.Mn / 1e6, y=diag.Pn / 1e3, name="กำลังระบุ (Mn, Pn)",
+    fig.add_trace(go.Scatter(x=diag.Mn / TM, y=diag.Pn / TON, name="กำลังระบุ (Mn, Pn)",
                              line=dict(color=C_GOLD, dash="dash", width=2)))
-    fig.add_trace(go.Scatter(x=diag.phiMn / 1e6, y=diag.phiPn / 1e3, name="กำลังออกแบบ (φMn, φPn)",
+    fig.add_trace(go.Scatter(x=diag.phiMn / TM, y=diag.phiPn / TON, name="กำลังออกแบบ (φMn, φPn)",
                              line=dict(color=C_NAVY, width=3.5), fill="tozerox",
                              fillcolor="rgba(30,58,138,0.10)"))
-    fig.add_trace(go.Scatter(x=[M_first / 1e6], y=[Pu / 1e3], mode="markers", name="แรงอันดับหนึ่ง (Pu, M2)",
+    fig.add_trace(go.Scatter(x=[M_first / TM], y=[Pu / TON], mode="markers", name="แรงอันดับหนึ่ง (Pu, M2)",
                              marker=dict(size=14, color=C_GOLD, symbol="circle", line=dict(color="#fff", width=2))))
     if math.isfinite(Mc):
-        fig.add_trace(go.Scatter(x=[Mc / 1e6], y=[Pu / 1e3], mode="markers",
+        fig.add_trace(go.Scatter(x=[Mc / TM], y=[Pu / TON], mode="markers",
                                  name="แรงหลังขยายโมเมนต์ (Pu, Mc)",
                                  marker=dict(size=20, color=C_RED if ratio > 1 else C_GREEN,
                                              symbol="star", line=dict(color="#fff", width=1.5))))
-        fig.add_trace(go.Scatter(x=[0, phiMn_ray / 1e6], y=[0, phiPn_ray / 1e3], mode="lines",
+        fig.add_trace(go.Scatter(x=[0, phiMn_ray / TM], y=[0, phiPn_ray / TON], mode="lines",
                                  name="แนวรัศมี", line=dict(color="#8791A8", width=1.5, dash="dot")))
         if M_first > 0:
-            fig.add_annotation(x=Mc / 1e6, y=Pu / 1e3, ax=M_first / 1e6, ay=Pu / 1e3,
+            fig.add_annotation(x=Mc / TM, y=Pu / TON, ax=M_first / TM, ay=Pu / TON,
                                xref="x", yref="y", axref="x", ayref="y",
                                showarrow=True, arrowhead=3, arrowwidth=2, arrowcolor=C_BRONZE)
-    fig.add_trace(go.Scatter(x=[diag.balanced[0] / 1e6], y=[diag.balanced[1] / 1e3], mode="markers",
+    fig.add_trace(go.Scatter(x=[diag.balanced[0] / TM], y=[diag.balanced[1] / TON], mode="markers",
                              name="จุดสมดุล", marker=dict(size=11, color=C_BRONZE, symbol="diamond")))
     fig.update_layout(
-        height=620, xaxis_title="M (kN·m)", yaxis_title="P (kN)",
+        height=620, xaxis_title="M (ตัน-ม.)", yaxis_title="P (ตัน)",
         legend=dict(orientation="h", y=-0.2), margin=dict(l=20, r=20, t=30, b=40),
         hovermode="closest", template="plotly_white",
         paper_bgcolor="#fff", plot_bgcolor="#FAFBFE", font=dict(color="#0F1E3D"),
@@ -379,31 +395,34 @@ with tab_pm:
     with st.expander("ตารางจุดบน Interaction Diagram"):
         sel = np.linspace(0, len(diag.Mn) - 1, 40).astype(int)
         df = pd.DataFrame({
-            "c (mm)": [f"{x:.0f}" if np.isfinite(x) else "∞" for x in diag.c[sel]],
-            "Pn (kN)": diag.Pn[sel] / 1e3, "Mn (kN·m)": diag.Mn[sel] / 1e6, "φ": diag.phi[sel],
-            "φPn (kN)": diag.phiPn[sel] / 1e3, "φMn (kN·m)": diag.phiMn[sel] / 1e6,
+            "c (cm)": [f"{x / 10:.1f}" if np.isfinite(x) else "∞" for x in diag.c[sel]],
+            "Pn (ตัน)": diag.Pn[sel] / TON, "Mn (ตัน-ม.)": diag.Mn[sel] / TM, "φ": diag.phi[sel],
+            "φPn (ตัน)": diag.phiPn[sel] / TON, "φMn (ตัน-ม.)": diag.phiMn[sel] / TM,
         })
         st.dataframe(df.style.format(precision=2), width="stretch", hide_index=True)
         st.download_button("⬇️ ดาวน์โหลด CSV", pd.DataFrame({
-            "c_mm": diag.c, "Pn_kN": diag.Pn / 1e3, "Mn_kNm": diag.Mn / 1e6, "phi": diag.phi,
-            "phiPn_kN": diag.phiPn / 1e3, "phiMn_kNm": diag.phiMn / 1e6,
+            "c_cm": diag.c / 10, "Pn_t": diag.Pn / TON, "Mn_tm": diag.Mn / TM, "phi": diag.phi,
+            "phiPn_t": diag.phiPn / TON, "phiMn_tm": diag.phiMn / TM,
         }).to_csv(index=False).encode("utf-8"), "interaction_diagram.csv", "text/csv")
 
 # ---------------------------------------------------------- Calculation tab
 with tab_calc:
+    EI_TM2 = TON * 1e6  # N·mm² per t·m²
+    h_cm = sec.h / 10
     step_header(1, "คุณสมบัติหน้าตัด", C_NAVY)
-    dim = f"b \\times h = {sec.b:.0f} \\times {sec.h:.0f}" if sec.shape == "rect" else f"D = {sec.h:.0f}"
-    st.latex(rf"{dim}\ \text{{mm}},\quad A_g = {sec.Ag:.0f}\ \text{{mm}}^2,\quad "
-             rf"I_g = {sci(sec.Ig)}\ \text{{mm}}^4")
-    st.latex(rf"A_{{st}} = {sec.Ast:.0f}\ \text{{mm}}^2,\quad \rho_g = {sec.Ast / sec.Ag:.4f},\quad "
-             rf"I_{{se}} = {sci(sec.Ise)}\ \text{{mm}}^4")
-    st.latex(rf"E_c = {Ec:.0f}\ \text{{MPa}},\quad \beta_1 = {aci.beta1(fc):.3f},\quad "
-             rf"r = {'0.25D' if sec.shape == 'circ' else '0.30h'} = {sec.r:.1f}\ \text{{mm}}\ (6.2.5.2)")
+    dim = f"b \\times h = {sec.b / 10:.1f} \\times {h_cm:.1f}" if sec.shape == "rect" else f"D = {h_cm:.1f}"
+    st.latex(rf"{dim}\ \text{{cm}},\quad A_g = {sec.Ag / 100:.1f}\ \text{{cm}}^2,\quad "
+             rf"I_g = {sci(sec.Ig / 1e4)}\ \text{{cm}}^4")
+    st.latex(rf"A_{{st}} = {sec.Ast / 100:.2f}\ \text{{cm}}^2,\quad \rho_g = {sec.Ast / sec.Ag:.4f},\quad "
+             rf"I_{{se}} = {sci(sec.Ise / 1e4)}\ \text{{cm}}^4")
+    st.latex(rf"f'_c = {fc_ksc:.0f},\ f_y = {fy_ksc:.0f},\ E_c = {lx(Ec / KSC, '.0f')}\ \text{{ksc}},\quad "
+             rf"\beta_1 = {aci.beta1(fc):.3f}")
+    st.latex(rf"r = {'0.25D' if sec.shape == 'circ' else '0.30h'} = {sec.r / 10:.2f}\ \text{{cm}}\ (6.2.5.2)")
 
     step_header(2, "ตรวจสอบความชะลูด (6.2.5.1)", C_GOLD)
     if psiA is not None:
         st.latex(rf"\psi_A = {psiA:.2f},\ \psi_B = {psiB:.2f}\ \Rightarrow\ k = {k:.3f}")
-    st.latex(rf"\frac{{k\ell_u}}{{r}} = \frac{{{res.k:.3f}\times{lu:.0f}}}{{{res.r:.1f}}} = {res.klu_r:.2f}")
+    st.latex(rf"\frac{{k\ell_u}}{{r}} = \frac{{{res.k:.3f}\times{lu / 10:.0f}}}{{{res.r / 10:.2f}}} = {res.klu_r:.2f}")
     if frame == "nonsway":
         m12 = res.extra.get("M1_M2", 0.0)
         st.latex(rf"\text{{ขีดจำกัด}} = \min\left(34 + 12\frac{{M_1}}{{M_2}},\ 40\right) = "
@@ -416,19 +435,21 @@ with tab_calc:
 
     if res.slender:
         step_header(3, "ความแข็งแรงประสิทธิผลและแรงวิกฤต (6.6.4.4)", C_BLUE)
+        EI_t = res.EI / EI_TM2
         if ei_method == "a":
-            st.latex(rf"(EI)_{{eff}} = \frac{{0.4E_cI_g}}{{1+\beta_{{dns}}}} = {sci(res.EI)}\ \text{{N·mm}}^2")
+            st.latex(rf"(EI)_{{eff}} = \frac{{0.4E_cI_g}}{{1+\beta_{{dns}}}} = {lx(EI_t, '.0f')}\ \text{{t·m}}^2")
         elif ei_method == "b":
             st.latex(rf"(EI)_{{eff}} = \frac{{0.2E_cI_g + E_sI_{{se}}}}{{1+\beta_{{dns}}}} = "
-                     rf"{sci(res.EI)}\ \text{{N·mm}}^2")
+                     rf"{lx(EI_t, '.0f')}\ \text{{t·m}}^2")
         else:
             I = res.extra.get("I", 0.0)
             st.latex(rf"I = \left(0.80 + 25\frac{{A_{{st}}}}{{A_g}}\right)\left(1 - \frac{{M_u}}{{P_uh}} - "
-                     rf"0.5\frac{{P_u}}{{P_o}}\right)I_g = {sci(I)}\ (0.35I_g \le I \le 0.875I_g)")
-            st.latex(rf"(EI)_{{eff}} = \frac{{E_cI}}{{1+\beta_{{dns}}}} = {sci(res.EI)}\ \text{{N·mm}}^2")
+                     rf"0.5\frac{{P_u}}{{P_o}}\right)I_g = {sci(I / 1e4)}\ \text{{cm}}^4\ "
+                     rf"(0.35I_g \le I \le 0.875I_g)")
+            st.latex(rf"(EI)_{{eff}} = \frac{{E_cI}}{{1+\beta_{{dns}}}} = {lx(EI_t, '.0f')}\ \text{{t·m}}^2")
         k_pc = 1.0 if frame == "sway" else res.k
-        st.latex(rf"P_c = \frac{{\pi^2(EI)_{{eff}}}}{{(k\ell_u)^2}} = \frac{{\pi^2 \times {sci(res.EI)}}}"
-                 rf"{{({k_pc:.3f}\times{lu:.0f})^2}} = {res.Pc / 1e3:.1f}\ \text{{kN}}")
+        st.latex(rf"P_c = \frac{{\pi^2(EI)_{{eff}}}}{{(k\ell_u)^2}} = \frac{{\pi^2 \times {lx(EI_t, '.0f')}}}"
+                 rf"{{({k_pc:.3f}\times{lu / 1000:.2f})^2}} = {lx(res.Pc / TON, '.1f')}\ \text{{t}}")
 
         step = 4
         if frame == "sway":
@@ -439,68 +460,69 @@ with tab_calc:
                 st.latex(rf"\delta_s = \frac{{1}}{{1-\frac{{\Sigma P_u}}{{0.75\Sigma P_c}}}} = "
                          rf"\frac{{1}}{{1-\frac{{{sumPu:.0f}}}{{0.75\times{sumPc:.0f}}}}} = {res.delta_s:.3f}")
             if "M_top" in res.extra:
-                st.latex(rf"M_{{top}} = M_{{ns}} + \delta_sM_s = {Mns_top:.1f} + {res.delta_s:.3f}({Ms_top:.1f}) = "
-                         rf"{res.extra['M_top'] / 1e6:.1f}\ \text{{kN·m}}")
-                st.latex(rf"M_{{bot}} = M_{{ns}} + \delta_sM_s = {Mns_bot:.1f} + {res.delta_s:.3f}({Ms_bot:.1f}) = "
-                         rf"{res.extra['M_bot'] / 1e6:.1f}\ \text{{kN·m}}")
+                st.latex(rf"M_{{top}} = M_{{ns}} + \delta_sM_s = {Mns_top:.2f} + {res.delta_s:.3f}({Ms_top:.2f}) = "
+                         rf"{res.extra['M_top'] / TM:.2f}\ \text{{t·m}}")
+                st.latex(rf"M_{{bot}} = M_{{ns}} + \delta_sM_s = {Mns_bot:.2f} + {res.delta_s:.3f}({Ms_bot:.2f}) = "
+                         rf"{res.extra['M_bot'] / TM:.2f}\ \text{{t·m}}")
             step = 5
 
         step_header(step, "ตัวขยายโมเมนต์ตามความยาวเสา δ (6.6.4.5)", C_BRONZE)
         m12 = res.extra.get("M1_M2", 0.0)
-        st.latex(rf"M_1 = {res.M1 / 1e6:.1f},\ M_2 = {res.M2 / 1e6:.1f}\ \text{{kN·m}},\quad "
+        st.latex(rf"M_1 = {res.M1 / TM:.2f},\ M_2 = {res.M2 / TM:.2f}\ \text{{t·m}},\quad "
                  rf"M_1/M_2 = {m12:.3f}")
-        st.latex(rf"M_{{2,min}} = P_u(15 + 0.03h) = {Pu / 1e3:.0f}(15 + 0.03\times{sec.h:.0f})/1000 = "
-                 rf"{res.M2_min / 1e6:.1f}\ \text{{kN·m}}")
+        st.latex(rf"M_{{2,min}} = P_u(1.5 + 0.03h) = {Pu / TON:.1f}(1.5 + 0.03\times{h_cm:.1f})/100 = "
+                 rf"{res.M2_min / TM:.2f}\ \text{{t·m}}")
         cm_expr = "1.0" if (res.use_min or (frame == "nonsway" and transverse_load)) else "0.6 - 0.4(M_1/M_2)"
         st.latex(rf"C_m = {cm_expr} = {res.Cm:.3f}")
         if res.unstable:
             st.error("Pu ≥ 0.75Pc → ไม่มีเสถียรภาพ")
         else:
             st.latex(rf"\delta = \frac{{C_m}}{{1 - \frac{{P_u}}{{0.75P_c}}}} = "
-                     rf"\frac{{{res.Cm:.3f}}}{{1 - \frac{{{Pu / 1e3:.0f}}}{{0.75\times{res.Pc / 1e3:.0f}}}}}"
+                     rf"\frac{{{res.Cm:.3f}}}{{1 - \frac{{{Pu / TON:.1f}}}{{0.75\times{res.Pc / TON:.1f}}}}}"
                      rf" = {res.delta:.3f}\ \ (\ge 1.0)")
             M2d = max(res.M2, res.M2_min)
-            st.latex(rf"M_c = \delta M_2 = {res.delta:.3f}\times{M2d / 1e6:.1f} = "
-                     rf"{res.extra.get('Mc_length', res.Mc) / 1e6 if frame == 'sway' else res.Mc / 1e6:.1f}"
-                     rf"\ \text{{kN·m}}")
+            Mc_len = res.extra.get("Mc_length", res.Mc) if frame == "sway" else res.Mc
+            st.latex(rf"M_c = \delta M_2 = {res.delta:.3f}\times{M2d / TM:.2f} = {Mc_len / TM:.2f}\ \text{{t·m}}")
             if frame == "sway":
-                st.latex(rf"M_{{u,design}} = \max(M_2,\ \delta M_2) = {res.Mc / 1e6:.1f}\ \text{{kN·m}}")
+                st.latex(rf"M_{{u,design}} = \max(M_2,\ \delta M_2) = {res.Mc / TM:.2f}\ \text{{t·m}}")
 
     step_header("✓", "ตรวจสอบกำลัง (22.4, 21.2.2)", C_GREEN if ratio <= 1 else C_RED)
-    st.latex(rf"P_o = 0.85f'_c(A_g - A_{{st}}) + f_yA_{{st}} = {diag.Po / 1e3:.0f}\ \text{{kN}}")
+    st.latex(rf"P_o = 0.85f'_c(A_g - A_{{st}}) + f_yA_{{st}} = {lx(diag.Po / TON, '.1f')}\ \text{{t}}")
     st.latex(rf"\phi P_{{n,max}} = {0.75 if transverse == 'spiral' else 0.65}\times"
-             rf"{0.85 if transverse == 'spiral' else 0.80}P_o = {diag.phiPn_max / 1e3:.0f}\ \text{{kN}}")
+             rf"{0.85 if transverse == 'spiral' else 0.80}P_o = {lx(diag.phiPn_max / TON, '.1f')}\ \text{{t}}")
     if math.isfinite(ratio):
-        st.latex(rf"(P_u, M_c) = ({Pu / 1e3:.0f},\ {Mc / 1e6:.1f})\quad \text{{vs}}\quad "
-                 rf"(\phi P_n, \phi M_n) = ({phiPn_ray / 1e3:.0f},\ {phiMn_ray / 1e6:.1f})")
+        st.latex(rf"(P_u, M_c) = ({Pu / TON:.1f}\ \text{{t}},\ {Mc / TM:.2f}\ \text{{t·m}})\quad \text{{vs}}\quad "
+                 rf"(\phi P_n, \phi M_n) = ({phiPn_ray / TON:.1f},\ {phiMn_ray / TM:.2f})")
         rel, verdict = (r"\le", "OK") if ratio <= 1 else (">", "NG")
         st.latex(rf"D/C = {ratio:.3f}\ {rel}\ 1.0\ \Rightarrow\ \text{{{verdict}}}")
 
 # ---------------------------------------------------------- Section tab
 with tab_sec:
     fs = go.Figure()
+    u = 0.1  # drawing in cm
     if sec.shape == "rect":
-        bx, hy = sec.b / 2, sec.h / 2
+        bx, hy = sec.b / 2 * u, sec.h / 2 * u
         fs.add_shape(type="rect", x0=-bx, y0=-hy, x1=bx, y1=hy,
                      line=dict(color="#7A859E", width=2), fillcolor="#E3E8F1")
-        ti = sec.cover + dt / 2
+        ti = (sec.cover + dt / 2) * u
         fs.add_shape(type="rect", x0=-bx + ti, y0=-hy + ti, x1=bx - ti, y1=hy - ti,
                      line=dict(color=C_NAVY, width=max(2, dt / 3)))
     else:
-        R = sec.h / 2
+        R = sec.h / 2 * u
         fs.add_shape(type="circle", x0=-R, y0=-R, x1=R, y1=R,
                      line=dict(color="#7A859E", width=2), fillcolor="#E3E8F1")
-        ti = R - sec.cover - dt / 2
+        ti = R - (sec.cover + dt / 2) * u
         fs.add_shape(type="circle", x0=-ti, y0=-ti, x1=ti, y1=ti,
                      line=dict(color=C_NAVY, width=max(2, dt / 3)))
+    rb = db / 2 * u
     for bar in sec.bars:
-        y = sec.h / 2 - bar.d
-        fs.add_shape(type="circle", x0=bar.x - db / 2, y0=y - db / 2, x1=bar.x + db / 2, y1=y + db / 2,
+        x, y = bar.x * u, (sec.h / 2 - bar.d) * u
+        fs.add_shape(type="circle", x0=x - rb, y0=y - rb, x1=x + rb, y1=y + rb,
                      line=dict(color="#0B1F4D", width=1.5), fillcolor=C_GOLD)
-    fs.add_annotation(x=0, y=sec.h / 2 * 1.18, text="▲ ผิวรับแรงอัด", showarrow=False,
+    fs.add_annotation(x=0, y=sec.h / 2 * u * 1.18, text="▲ ผิวรับแรงอัด", showarrow=False,
                       font=dict(color=C_NAVY, size=14))
-    lim = max(sec.b, sec.h) / 2 * 1.3
-    fs.update_xaxes(range=[-lim, lim], scaleanchor="y", scaleratio=1, showgrid=False, title="mm")
+    lim = max(sec.b, sec.h) / 2 * u * 1.3
+    fs.update_xaxes(range=[-lim, lim], scaleanchor="y", scaleratio=1, showgrid=False, title="cm")
     fs.update_yaxes(range=[-lim, lim], showgrid=False)
     fs.update_layout(height=520, margin=dict(l=10, r=10, t=10, b=10), plot_bgcolor="#fff", paper_bgcolor="#fff")
 
@@ -508,16 +530,16 @@ with tab_sec:
     c1.plotly_chart(fs, width="stretch")
     with c2:
         st.markdown(f"""
-- **หน้าตัด:** {"สี่เหลี่ยม %.0f × %.0f mm" % (sec.b, sec.h) if sec.shape == "rect" else "วงกลม D = %.0f mm" % sec.h}
-- **เหล็กยืน:** {sec.n_bars}-{bar_lbl} (Ast = {sec.Ast:,.0f} mm²)
-- **เหล็กปลอก:** {tie_lbl} {"@ ≤ %.0f mm" % aci.tie_spacing(sec) if transverse == "tied" else "(ปลอกเกลียว)"}
-- **ระยะหุ้ม:** {sec.cover:.0f} mm
+- **หน้าตัด:** {"สี่เหลี่ยม %.1f × %.1f ซม." % (sec.b / 10, sec.h / 10) if sec.shape == "rect" else "วงกลม D = %.1f ซม." % (sec.h / 10)}
+- **เหล็กยืน:** {sec.n_bars}-{bar_lbl} (Ast = {sec.Ast / 100:,.2f} ซม.²)
+- **เหล็กปลอก:** {tie_lbl} {"@ ≤ %.1f ซม." % (aci.tie_spacing(sec) / 10) if transverse == "tied" else "(ปลอกเกลียว)"}
+- **ระยะหุ้ม:** {sec.cover / 10:.1f} ซม.
 - **ρg:** {sec.Ast / sec.Ag * 100:.2f} %
 """)
         st.dataframe(pd.DataFrame({
-            "x (mm)": [round(b_.x, 1) for b_ in sec.bars],
-            "d (mm)": [round(b_.d, 1) for b_ in sec.bars],
-            "As (mm²)": [round(b_.area, 1) for b_ in sec.bars],
+            "x (cm)": [round(b_.x / 10, 2) for b_ in sec.bars],
+            "d (cm)": [round(b_.d / 10, 2) for b_ in sec.bars],
+            "As (cm²)": [round(b_.area / 100, 2) for b_ in sec.bars],
         }), hide_index=True, width="stretch", height=260)
 
 st.divider()

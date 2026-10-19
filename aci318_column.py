@@ -514,12 +514,12 @@ def detailing_checks(sec: Section, transverse: str, agg: float = 25.0) -> list[t
             dist = math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1])
             smin = min(smin, dist)
     s_clear = smin - sec.db if np.isfinite(smin) else float("inf")
-    out.append((f"ระยะช่องว่างระหว่างเหล็ก ≥ {s_clear_min:.0f} mm (25.2.3)",
-                s_clear >= s_clear_min, f"ช่องว่างน้อยสุด = {s_clear:.0f} mm"))
+    out.append((f"ระยะช่องว่างระหว่างเหล็ก ≥ {s_clear_min / 10:.1f} ซม. (25.2.3)",
+                s_clear >= s_clear_min, f"ช่องว่างน้อยสุด = {s_clear / 10:.1f} ซม."))
     if transverse == "tied":
         tie_min = 12.0 if sec.db > 32 else 10.0  # No.3 / No.4 (metric equivalent)
-        out.append((f"ขนาดเหล็กปลอก ≥ {tie_min:.0f} mm (25.7.2.2)",
-                    sec.dt >= tie_min - 0.1, f"ใช้ {sec.dt:.0f} mm"))
+        out.append((f"ขนาดเหล็กปลอก ≥ {tie_min / 10:.1f} ซม. (25.7.2.2)",
+                    sec.dt >= tie_min - 0.1, f"ใช้ {sec.dt / 10:.1f} ซม."))
     return out
 
 
